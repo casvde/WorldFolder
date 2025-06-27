@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { createScene } from './sceneSetup.js';
 import { paTextureLoader } from './textureLoader.js';
 import { createTileMap } from './tileMap.js';
@@ -9,9 +12,14 @@ import {
     printGrid
 } from './islandGenerator.js';
 
+import { setupPostprocessing } from './postProcessManager.js';
+
+
 import { Player } from './tempPlayer.js';
 
 const { scene, camera, renderer, controls } = createScene('MAIN-CANVAS');
+const { composer, triggerShake, update } = setupPostprocessing(renderer, scene, camera);
+
 
 
 
@@ -20,7 +28,8 @@ const { scene, camera, renderer, controls } = createScene('MAIN-CANVAS');
 let tileMapBase = generateBlobIsland(14, 12, 2, 180, 3, 6);
 
 const loader = new paTextureLoader();
-const player = new Player(scene, loader);
+
+const player = new Player(scene, loader, triggerShake);
 
 const globalLight = new THREE.AmbientLight(0x404040, 30);
 scene.add(globalLight);
@@ -75,9 +84,27 @@ loader.load('/textures/wall-tiles.png', function(texture) {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function animate() {
   controls.update();
-  renderer.render(scene, camera);
+
+  composer.render()
+
+  update();
   requestAnimationFrame(animate);
 }
 

@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 
 export class Player {
-    constructor(scene, textureLoader) {
+    constructor(scene, textureLoader , triggerShake) {
         this.scene = scene;
+        this.triggerShake = triggerShake;
 
         this.light = new THREE.PointLight(0xffffff, 0.3);
         this.light.position.set(0, 0.2, 0);
@@ -94,6 +95,10 @@ export class Player {
                 this.tileMarker.visible = true;
                 this.isHopping = false;
 
+                if (this.triggerShake) {
+                    this.triggerShake(0.4, 0.2); 
+                }
+            
                 if (this.queuedDirection) {
                     const nextDirection = this.queuedDirection;
                     this.queuedDirection = null;
