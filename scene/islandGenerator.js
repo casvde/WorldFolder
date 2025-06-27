@@ -130,6 +130,32 @@ function generateBlobIsland(width, height, margin = 3, maxIterations = 1000, smo
     return removeFloatingIslands(grid);
 }
 
+function generateBackgroundTiles(width, height, tileVariants = 3, landRatio = 0.15) {
+    const grid = Array.from({ length: height }, () => Array(width).fill(0));
+    const totalTiles = width * height;
+    const landTilesCount = Math.floor(totalTiles * landRatio);
+
+    const positions = [];
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            positions.push([x, y]);
+        }
+    }
+
+    for (let i = positions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [positions[i], positions[j]] = [positions[j], positions[i]];
+    }
+
+    for (let i = 0; i < landTilesCount; i++) {
+        const [x, y] = positions[i];
+        grid[y][x] = 1 + Math.floor(Math.random() * tileVariants);
+    }
+
+    return grid;
+}
+
+
 function createPadding(grid, randomMax = 1) {
     const height = grid.length;
     const width = grid[0].length;
@@ -167,8 +193,6 @@ function createPadding(grid, randomMax = 1) {
 
     return padded;
 }
-
-
 
 function createIndexedPadding(grid) {
     const height = grid.length;
@@ -239,14 +263,44 @@ function createIndexedPadding(grid) {
     return indexed;
 }
 
-
 function printGrid(grid) {
     grid.forEach(row => console.log(row.join(' ')));
 }
 
+function createColliders(grid, tileSize = 1, offset = { x: 0, y: 0, z: 0 }) {
+    const height = grid.length;
+    if (height === 0) return [];
+    const width = grid[0].length;
+
+    const colliders = [];
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            if (grid[y][x] !== 0) {
+                colliders.push({
+                    position: {
+                        x: x * tileSize + offset.x,
+                        y: offset.y,
+                        z: y * tileSize + offset.z
+                    },
+                    size: tileSize
+                });
+            }
+        }
+    }
+
+    return colliders;
+}
+
+
+
+
+
+
 
 export {
     generateBlobIsland,
+    generateBackgroundTiles,
     getBiasedLandTile,
     isNearLand,
     countSurroundingLand,
@@ -255,5 +309,6 @@ export {
     removeFloatingIslands,
     createPadding,
     createIndexedPadding,
-    printGrid
+    printGrid,
+    createColliders
 };

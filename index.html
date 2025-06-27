@@ -7,15 +7,41 @@
 </head>
 
 <style>
+
+@font-face {
+    font-family: 'HopeGold';
+    src: url('/HopeGold.woff2') format('woff2');
+}
+
+
 *{
     padding: 0;
     margin: 0;
+    font-family: 'HopeGold';
 }
+
+
 
 #MAIN-CANVAS{
     overflow: hidden;
     height: 100vh;
     width: 100%;
+}
+
+#debug-left{
+    position: absolute;
+    color: white;
+    margin: 12px;
+}
+
+button{
+
+    all: unset;
+    font-size: 16px;
+    color: white;
+    border: 1px solid white;
+    padding: 6px 12px;
+    margin-top: 16px;
 }
 
 
@@ -24,6 +50,15 @@
 </style>
 
 <body>
+    <div id="debug-left">
+        <div id="tilemap"></div>
+        <div id="padding"></div>
+        <div id="walls"></div>
+        <div id="backgroundTiles"></div>
+        <button id="reloadButton">Reload Level</button>
+    </div>
+
+
     <div id="MAIN-CANVAS"></div>
     <script src="./scene/script.js" type="module"></script>
 </body>

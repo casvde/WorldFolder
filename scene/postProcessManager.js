@@ -80,11 +80,11 @@ export function setupPostprocessing(renderer, scene, camera, pixelSize = 1) {
         uniform float time;
         uniform float intensity;
         varying vec2 vUv;
-        
+
         float rand(float n) {
           return fract(sin(n) * 43758.5453);
         }
-        
+
         void main() {
           float offsetX = (rand(time) - 0.5) * intensity;
           float offsetY = (rand(time + 100.0) - 0.5) * intensity;
@@ -95,13 +95,12 @@ export function setupPostprocessing(renderer, scene, camera, pixelSize = 1) {
   };
   const shakePass = new ShaderPass(shakeShader);
 
-  // ---- Effect Composer ----
+
   const composer = new EffectComposer(renderer);
   composer.addPass(renderPass);
-  composer.addPass(shakePass);   // Add shake BEFORE dither
+  composer.addPass(shakePass);   
   composer.addPass(bayerPass);
 
-  // ---- Shake State ----
   let shakeStart = 0;
   let shakeDuration = 0;
   let shakeIntensity = 0;

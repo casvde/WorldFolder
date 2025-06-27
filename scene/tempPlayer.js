@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 
 export class Player {
-    constructor(scene, textureLoader , triggerShake) {
+    constructor(scene, textureLoader , triggerShake, wallColliders) {
         this.scene = scene;
         this.triggerShake = triggerShake;
+        this.wallColliders = wallColliders;
 
         this.light = new THREE.PointLight(0xffffff, 0.3);
         this.light.position.set(0, 0.2, 0);
@@ -31,27 +32,29 @@ export class Player {
 
         this.hopDistance = 1;
         this.hopHeight = 0.5;
-        this.hopDuration = 200;
+        this.hopDuration = 100;
+        this.hopCooldown = 150; 
         this.isHopping = false;
         this.queuedDirection = null;
         this.lastInputTime = 0;
-        this.inputDebounce = 150;
+        this.inputDebounce = 50;
 
         window.addEventListener("keydown", (e) => this.onKeyDown(e));
     }
+    
 
     onKeyDown(e) {
-        const validKeys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+        const validKeys = ["w", "s", "a", "d"];
         if (validKeys.includes(e.key)) {
             e.preventDefault();
             this.hop(e.key);
         }
     }
 
-    hop(direction) {
+    hop(direction, force = false) {
         const now = performance.now();
 
-        if (now - this.lastInputTime < this.inputDebounce) return;
+        if (!force && now - this.lastInputTime < this.inputDebounce) return;
         this.lastInputTime = now;
 
         if (this.isHopping) {
@@ -59,8 +62,31 @@ export class Player {
             return;
         }
 
+        let dx = 0, dz = 0;
+        if (direction === "w") dz = -1;
+        if (direction === "s") dz = 1;
+        if (direction === "a") dx = -1;
+        if (direction === "d") dx = 1;
+
+        const currentX = Math.round(this.light.position.x);
+        const currentZ = Math.round(this.light.position.z);
+        const targetX = currentX + dx;
+        const targetZ = currentZ + dz;
+
+        const blocked = this.wallColliders.some(collider => {
+            const colX = Math.round(collider.position.x);
+            const colZ = Math.round(collider.position.z);
+            return colX === targetX && colZ === targetZ;
+        });
+
+        if (blocked) {
+            this.triggerShake(0.6, 0.2);
+            return;
+        }
+
         this.executeHop(direction);
     }
+
 
     executeHop(direction) {
         this.isHopping = true;
@@ -69,12 +95,11 @@ export class Player {
 
         this.tileMarker.visible = false;
 
-        let dx = 0,
-            dz = 0;
-        if (direction === "ArrowUp") dz = -this.hopDistance;
-        if (direction === "ArrowDown") dz = this.hopDistance;
-        if (direction === "ArrowLeft") dx = -this.hopDistance;
-        if (direction === "ArrowRight") dx = this.hopDistance;
+        let dx = 0, dz = 0;
+        if (direction === "w") dz = -this.hopDistance;
+        if (direction === "s") dz = this.hopDistance;
+        if (direction === "a") dx = -this.hopDistance;
+        if (direction === "d") dx = this.hopDistance;
 
         const endPos = startPos.clone().add(new THREE.Vector3(dx, 0, dz));
 
@@ -93,20 +118,20 @@ export class Player {
                 this.light.position.set(endPos.x, startPos.y, endPos.z);
                 this.tileMarker.position.set(endPos.x, 0.01, endPos.z);
                 this.tileMarker.visible = true;
-                this.isHopping = false;
 
-                if (this.triggerShake) {
-                    this.triggerShake(0.4, 0.2); 
-                }
+            setTimeout(() => {
+                this.isHopping = false;
             
                 if (this.queuedDirection) {
                     const nextDirection = this.queuedDirection;
                     this.queuedDirection = null;
-                    setTimeout(() => this.executeHop(nextDirection));
+                    this.hop(nextDirection, true);
                 }
+            }, this.hopCooldown);
             }
         };
 
         requestAnimationFrame(animateHop);
     }
+
 }
