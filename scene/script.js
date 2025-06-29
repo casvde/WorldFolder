@@ -1,10 +1,12 @@
 import * as THREE from 'three';
+
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 
 import { createScene } from './sceneSetup.js';
 import { paTextureLoader } from './textureLoader.js';
 import { createTileMap } from './tileMap.js';
+import { createFoliageInstances } from './grassHandler.js';
 
 import {
     generateBlobIsland,
@@ -33,129 +35,161 @@ const { scene, camera, renderer, controls } = createScene('MAIN-CANVAS');
 const { composer, triggerShake, update } = setupPostprocessing(renderer, scene, camera);
 
 
-
 let tileMap;
 let wallColliders;
 const levelChunk = [];
+const textureCache = new Map();
+
+let accumulator = 0;
+const clock = new THREE.Clock();
+
+let grass;
 
 
 
-function loadLevel(){
 
-  //width, height, margin, maxIterations , smoothingIterations , tileVariants
-  let tileMapBase = generateBlobIsland(14, 12, 2, 180, 3, 6);
-  let backgroundTiles = generateBackgroundTiles(25, 16, 3, 0.02);
-
-  loader.load('textures/stone-tiles.png', function(texture) {
-
-    const tileMap = tileMapBase;
-    printGridDom(tileMap , "tilemap");
-    
-    const tileGroupSet = createTileMap({
-      texture,
-      tileMap,
-      tileSize: 1,
-      tileWidth: 16,
-      tileHeight: 16,
-      offset: { x: -8, y: 0, z: -6 },
-      rotation: { x: -Math.PI / 2, y: 0, z: 0 }, 
-      scene: scene,
-    });
-    
-    levelChunk.push(tileGroupSet);
-  });
-
-
-  loader.load('/textures/dirt-tiles.png', function(texture) {
-
-    const tileMap = createPadding(tileMapBase , 3);
-    printGridDom(tileMap , "padding");
-
-    const tileGroupSet = createTileMap({
-      texture,
-      tileMap,
-      tileSize: 1,
-      tileWidth: 16,
-      tileHeight: 16,
-      offset: { x: -8, y: -0.01, z: -6 },
-      rotation: { x: -Math.PI / 2, y: 0, z: 0 }, 
-      scene: scene,
-    });
-
-    levelChunk.push(tileGroupSet);
-  });
-
-
-  loader.load('/textures/wall-tiles.png', function(texture) {
-
-    const tileMap =  createIndexedPadding(createPadding(tileMapBase));
-    printGridDom(tileMap , "walls");
-
-    const tileGroupSet = createTileMap({
-      texture,
-      tileMap,
-      tileSize: 1,
-      tileWidth: 16,
-      tileHeight: 16,
-      offset: { x: -8, y: -0.01, z: -6 },
-      rotation: { x: -Math.PI / 2, y: 0, z: 0 }, 
-      scene: scene,
-    });
-    
-    levelChunk.push(tileGroupSet);
-  });
-
-
-
-  loader.load('/textures/background-tiles.png', function(texture) {
-
-    const tileMap = backgroundTiles;
-    printGridDom(tileMap , "backgroundTiles");
-
-    const tileGroupSet = createTileMap({
-      texture,
-      tileMap,
-      tileSize: 1,
-      tileWidth: 16,
-      tileHeight: 16,
-      offset: { x: -12, y: -0.03, z: -8 },
-      rotation: { x: -Math.PI / 2, y: 0, z: 0 }, 
-      scene: scene,
-    });
-    
-    levelChunk.push(tileGroupSet);
-  });
-
-
-  tileMap =  createIndexedPadding(createPadding(tileMapBase));
-  wallColliders = createColliders(tileMap, 1, { x: -8.5, y: -0.01, z: -6.5 });  
-
-  return { tileMap, wallColliders };
-}
-
-
-
-function reloadLevel() {
-  for (const mesh of levelChunk) {
-    scene.remove(mesh);
-    if (mesh.geometry) mesh.geometry.dispose();
-    if (mesh.material) {
-      if (Array.isArray(mesh.material)) {
-        mesh.material.forEach(m => m.dispose());
+function disposeHierarchy(node) {
+  node.traverse(child => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        child.material.forEach(mat => mat.dispose());
       } else {
-        mesh.material.dispose();
+        child.material.dispose();
       }
     }
+  });
+  scene.remove(node);
+}
+
+function loadTexture(path) {
+  if (textureCache.has(path)) {
+    return Promise.resolve(textureCache.get(path));
   }
-  levelChunk.length = 0;
-  loadLevel();
-  visualizeColliders(wallColliders, scene);
+
+  return new Promise((resolve, reject) => {
+    loader.load(path, tex => {
+      textureCache.set(path, tex);
+      resolve(tex);
+    }, undefined, reject);
+  });
+}
+
+async function loadLevel() {
+  const tileMapBase = generateBlobIsland(14, 12, 2, 180, 3, 6);
+  const backgroundTiles = generateBackgroundTiles(25, 16, 3, 0.02);
+
+  const [stoneTex, dirtTex, wallTex, bgTex] = await Promise.all([
+    loadTexture('textures/stone-tiles.png'),
+    loadTexture('textures/dirt-tiles.png'),
+    loadTexture('textures/wall-tiles.png'),
+    loadTexture('textures/background-tiles.png'),
+  ]);
+
+
+  const stoneMap = tileMapBase;
+  const dirtMap = createPadding(tileMapBase, 3);
+  const wallMap = createIndexedPadding(createPadding(tileMapBase));
+  const bgMap = backgroundTiles;
+
+  const stoneTiles = createTileMap({
+    texture: stoneTex,
+    tileMap: stoneMap,
+    tileSize: 1,
+    tileWidth: 16,
+    tileHeight: 16,
+    offset: { x: -8, y: 0, z: -6 },
+    rotation: { x: -Math.PI / 2, y: 0, z: 0 },
+    scene,
+  });
+  levelChunk.push(stoneTiles);
+
+  const dirtTiles = createTileMap({
+    texture: dirtTex,
+    tileMap: dirtMap,
+    tileSize: 1,
+    tileWidth: 16,
+    tileHeight: 16,
+    offset: { x: -8, y: -0.01, z: -6 },
+    rotation: { x: -Math.PI / 2, y: 0, z: 0 },
+    scene,
+  });
+  levelChunk.push(dirtTiles);
+
+  const wallTiles = createTileMap({
+    texture: wallTex,
+    tileMap: wallMap,
+    tileSize: 1,
+    tileWidth: 16,
+    tileHeight: 16,
+    offset: { x: -8, y: -0.01, z: -6 },
+    rotation: { x: -Math.PI / 2, y: 0, z: 0 },
+    scene,
+  });
+  levelChunk.push(wallTiles);
+
+  const background = createTileMap({
+    texture: bgTex,
+    tileMap: bgMap,
+    tileSize: 1,
+    tileWidth: 16,
+    tileHeight: 16,
+    offset: { x: -12, y: -0.03, z: -8 },
+    rotation: { x: -Math.PI / 2, y: 0, z: 0 },
+    scene,
+  });
+  levelChunk.push(background);
+
+  tileMap = wallMap;
+  wallColliders = createColliders(tileMap, 1, { x: -8.5, y: -0.01, z: -6.5 });
+
+
+
+  grass = createFoliageInstances({
+    textureURL: 'textures/grass-atlas.png',
+    camera: camera,
+    renderRadius : 300,
+    instanceCount: 20,
+    areaWidth: 2.2,
+    areaDepth: 2.2,
+    waveStrength: 0.03,
+    center:new THREE.Vector3(0, 0, 0 ),
+  });
+  
+
+  scene.add(grass);
+  levelChunk.push(grass);
+
+
   player.wallColliders = wallColliders;
 }
 
-document.getElementById("reloadButton").addEventListener("click", reloadLevel);
+async function reloadLevel() {
+  for (const mesh of levelChunk) {
+    disposeHierarchy(mesh);
+  }
+  levelChunk.length = 0;
 
-loadLevel();
+  await loadLevel();
+}
+
+function clearTextureCache() {
+  for (const tex of textureCache.values()) {
+    tex.dispose();
+  }
+  textureCache.clear();
+}
+
+
+
+
+
+
+document.getElementById("reloadButton").addEventListener("click", async () => {
+  await reloadLevel();
+});
+
+loadLevel();  
 
 const player = new Player(scene, loader, triggerShake, wallColliders);
 
@@ -169,15 +203,26 @@ const player = new Player(scene, loader, triggerShake, wallColliders);
 const globalLight = new THREE.AmbientLight(0x404040, 35);
 scene.add(globalLight);
 
-function animate() {
-  controls.update();
 
-  composer.render()
+function animate() {
+
+  const delta = clock.getDelta();
+  accumulator += delta;
+
+
+
+  controls.update();
+  composer.render();
   update();
+
+
+
+
   requestAnimationFrame(animate);
 }
 
 animate();
+
 
 
 

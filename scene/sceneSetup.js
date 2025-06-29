@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/Addons.js';
+import { WebGPURenderer } from 'three/webgpu';
 
 export function createScene(containerId) {
     const scene = new THREE.Scene();
