@@ -4,7 +4,7 @@ import { WebGPURenderer } from 'three/webgpu';
 
 export function createScene(containerId) {
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x38201e);
+    scene.background = new THREE.Color(0x4a2c2a);
 
     const camera = new THREE.PerspectiveCamera(12, window.innerWidth / window.innerHeight, 0.1, 1000);
 

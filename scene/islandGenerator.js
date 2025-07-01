@@ -1,3 +1,6 @@
+import * as THREE from 'three';
+import { createFoliageInstances } from './grassHandler';
+
 function getBiasedLandTile(tileVariants) {
     const weights = Array.from({ length: tileVariants }, (_, i) => tileVariants - i);
     const total = weights.reduce((sum, w) => sum + w, 0);
@@ -61,6 +64,19 @@ function smoothGrid(grid, tileVariants) {
     }
 
     return newGrid;
+}
+
+function combineGrids(gridA, gridB) {
+    const height = gridA.length;
+    const width = gridA[0].length;
+    const combined = Array.from({ length: height }, (_, y) =>
+        Array.from({ length: width }, (_, x) => {
+            const valB = gridB[y][x];
+            const valA = gridA[y][x];
+            return valB !== 0 ? valB : valA;
+        })
+    );
+    return combined;
 }
 
 function floodFill(grid, x, y) {
@@ -154,7 +170,6 @@ function generateBackgroundTiles(width, height, tileVariants = 3, landRatio = 0.
 
     return grid;
 }
-
 
 function createPadding(grid, randomMax = 1) {
     const height = grid.length;
@@ -292,11 +307,106 @@ function createColliders(grid, tileSize = 1, offset = { x: 0, y: 0, z: 0 }) {
     return colliders;
 }
 
+function countMainIslandTiles(grid) {
+    const height = grid.length;
+    const width = grid[0].length;
+    let startX = -1, startY = -1;
+
+    outer: for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            if (grid[y][x] > 0) {
+                startX = x;
+                startY = y;
+                break outer;
+            }
+        }
+    }
+
+    if (startX === -1) return 0; 
+
+    const connected = floodFill(grid, startX, startY);
+    return connected.size;
+}
+
+function randomTilePoints(grid, count, { onlyLand = false, margin = 0 } = {}) {
+    const height = grid.length;
+    const width = grid[0].length;
+    const resultGrid = Array.from({ length: height }, () => Array(width).fill(0));
+    const selected = [];
+    const occupied = new Set();
+
+    const candidates = [];
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            if (!onlyLand || grid[y][x] > 0) {
+                candidates.push([x, y]);
+            }
+        }
+    }
+
+    // Fisher-Yates shuffle 
+    for (let i = candidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+
+    const isTooClose = (x, y) => {
+        for (let dy = -margin; dy <= margin; dy++) {
+            for (let dx = -margin; dx <= margin; dx++) {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (occupied.has(`${nx},${ny}`)) return true;
+            }
+        }
+        return false;
+    };
+
+    for (const [x, y] of candidates) {
+        if (selected.length >= count) break;
+        if (isTooClose(x, y)) continue;
+
+        selected.push([x, y]);
+        resultGrid[y][x] = 1;
 
 
+        for (let dy = -margin; dy <= margin; dy++) {
+            for (let dx = -margin; dx <= margin; dx++) {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                    occupied.add(`${nx},${ny}`);
+                }
+            }
+        }
+    }
 
+    if (selected.length < count) {
+        throw new Error(`Could only place ${selected.length} out of ${count} points with margin ${margin}`);
+    }
 
+    return resultGrid;
+}
 
+function generateBerryTiles(grid, count, { onlyLand = true, margin = 0 } = {}) {
+    const randomPoint = randomTilePoints(grid, count, { onlyLand, margin });
+    const randomPointPadding = createIndexedPadding(randomPoint);
+    const combinedGrid = combineGrids(randomPointPadding, randomPoint);
+
+    const pointsWithVector3 = [];
+    for (let y = 0; y < randomPoint.length; y++) {
+        for (let x = 0; x < randomPoint[y].length; x++) {
+            if (randomPoint[y][x] !== 0) {
+                pointsWithVector3.push({
+                    center: new THREE.Vector3(x, y, 0)
+                });
+            }
+        }
+    }
+
+    combinedGrid.berryCenter = pointsWithVector3;  
+
+    return combinedGrid;
+}
 
 export {
     generateBlobIsland,
@@ -310,5 +420,8 @@ export {
     createPadding,
     createIndexedPadding,
     printGrid,
-    createColliders
+    createColliders,
+    countMainIslandTiles,
+    randomTilePoints,
+    generateBerryTiles
 };

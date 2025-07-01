@@ -20,7 +20,7 @@ export class Player {
         const tileGeometry = new THREE.PlaneGeometry(1, 1);
         this.tileMarker = new THREE.Mesh(tileGeometry, tileMaterial);
         this.tileMarker.rotation.x = -Math.PI / 2;
-        this.tileMarker.position.set(0, 0.01, 0);
+        this.tileMarker.position.set(0, 0.03, 0);
         this.scene.add(this.tileMarker);
 
         const lightHelperGeometry = new THREE.SphereGeometry(0.1, 8, 8);
@@ -116,7 +116,7 @@ export class Player {
                 requestAnimationFrame(animateHop);
             } else {
                 this.light.position.set(endPos.x, startPos.y, endPos.z);
-                this.tileMarker.position.set(endPos.x, 0.01, endPos.z);
+                this.tileMarker.position.set(endPos.x, 0.05, endPos.z);
                 this.tileMarker.visible = true;
 
             setTimeout(() => {
